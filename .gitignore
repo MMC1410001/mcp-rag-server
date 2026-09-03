@@ -1,0 +1,11 @@
+.env
+*.pem
+*serviceAccount*.json
+accounts_key.json
+chroma_db/
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.venv/
+venv/
+.DS_Store
