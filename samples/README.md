@@ -1,6 +1,6 @@
 # samples/
 
-Public-domain content used by `demo.py` so the server can be exercised without any private data.
+Public-domain content used by `python main.py --demo` so the server can be exercised without any private data.
 
 | File | Purpose |
 |---|---|
