@@ -2,13 +2,10 @@
 
 import anthropic
 
-SYSTEM_PROMPT = """You are a helpful assistant that answers questions based strictly on the provided document context.
+from src.prompts import prompt_templates
+from src.utils import helpers
 
-Rules:
-- Answer only from the provided context chunks
-- If the context doesn't contain enough information, say so explicitly
-- Cite the source filename when referencing specific information
-- Be concise and accurate"""
+SYSTEM_PROMPT = prompt_templates.SYSTEM_PROMPT
 
 
 def answer(question: str, context_chunks: list[dict], client: anthropic.Anthropic) -> dict:
@@ -18,12 +15,14 @@ def answer(question: str, context_chunks: list[dict], client: anthropic.Anthropi
     """
     if not context_chunks:
         return {
-            "answer": "No relevant documents found in the knowledge base. Please ingest documents first.",
+            "answer": prompt_templates.NO_CONTEXT_ANSWER,
             "sources": [],
         }
 
-    context_text = "\n\n---\n\n".join(
-        f"[Source: {chunk['metadata'].get('filename', 'unknown')}]\n{chunk['text']}"
+    context_text = prompt_templates.CONTEXT_SEPARATOR.join(
+        prompt_templates.CONTEXT_CHUNK_TEMPLATE.format(
+            filename=chunk["metadata"].get("filename", "unknown"), text=chunk["text"]
+        )
         for chunk in context_chunks
     )
 
@@ -33,13 +32,15 @@ def answer(question: str, context_chunks: list[dict], client: anthropic.Anthropi
     })
 
     response = client.messages.create(
-        model="claude-sonnet-4-6",
-        max_tokens=1024,
+        model=helpers.get("llm", "model"),
+        max_tokens=helpers.get("llm", "max_tokens"),
         system=SYSTEM_PROMPT,
         messages=[
             {
                 "role": "user",
-                "content": f"Context:\n{context_text}\n\nQuestion: {question}",
+                "content": prompt_templates.USER_TEMPLATE.format(
+                    context=context_text, question=question
+                ),
             }
         ],
     )

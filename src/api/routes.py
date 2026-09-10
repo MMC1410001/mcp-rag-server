@@ -1,4 +1,7 @@
-"""RAG MCP Server — expose document ingestion, search, and Q&A as MCP tools."""
+"""MCP tool routes: document ingestion, search, and Q&A.
+
+Run via main.py at the project root, which calls `serve()` below.
+"""
 
 import os
 import json
@@ -10,9 +13,11 @@ from mcp.server import Server
 from mcp.server.stdio import stdio_server
 from mcp import types
 
-import ingestion
-import vector_store
-import generator
+from src.ingestion import loader
+from src.llm import llm_client
+from src.retrieval import retriever
+from src.utils import helpers
+from src.vectordb import vector_store
 
 load_dotenv()
 
@@ -110,7 +115,7 @@ async def call_tool(name: str, arguments: dict) -> list[types.TextContent]:
         if name == "ingest_document":
             url = arguments["url"]
             chunks, chunk_metadatas, summary = await asyncio.get_event_loop().run_in_executor(
-                None, ingestion.load_document, url, _claude_client
+                None, loader.load_document, url, _claude_client
             )
             count = vector_store.add_chunks(chunks, chunk_metadatas)
             result = {
@@ -126,8 +131,8 @@ async def call_tool(name: str, arguments: dict) -> list[types.TextContent]:
 
         elif name == "search_documents":
             query = arguments["query"]
-            n = arguments.get("n_results", 5)
-            hits = vector_store.search(query, n_results=n)
+            n = arguments.get("n_results", helpers.get("retrieval", "n_results"))
+            hits = retriever.retrieve(query, n_results=n)
             result = {
                 "query": query,
                 "results": [
@@ -143,10 +148,10 @@ async def call_tool(name: str, arguments: dict) -> list[types.TextContent]:
 
         elif name == "ask_question":
             question = arguments["question"]
-            n = arguments.get("n_context_chunks", 5)
-            hits = vector_store.search(question, n_results=n)
+            n = arguments.get("n_context_chunks", helpers.get("retrieval", "n_context_chunks"))
+            hits = retriever.retrieve_context(question, n_chunks=n)
             response = await asyncio.get_event_loop().run_in_executor(
-                None, generator.answer, question, hits, _claude_client
+                None, llm_client.answer, question, hits, _claude_client
             )
             result = response
 
@@ -182,10 +187,7 @@ async def list_resources() -> list[types.Resource]:
     ]
 
 
-async def main():
+async def serve() -> None:
+    """Run the MCP server over stdio. Invoked by main.py."""
     async with stdio_server() as (read_stream, write_stream):
         await app.run(read_stream, write_stream, app.create_initialization_options())
-
-
-if __name__ == "__main__":
-    asyncio.run(main())

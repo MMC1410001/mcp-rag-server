@@ -1,4 +1,8 @@
-"""Document loading, parsing, and chunking from Google Drive links."""
+"""Document loading and parsing from Google Drive links.
+
+Chunking lives in src/chunking/chunker.py; `chunk_text` is re-exported here so
+the loader can build chunks in one pass over a downloaded file.
+"""
 
 import re
 import os
@@ -9,6 +13,10 @@ from typing import Optional
 
 import gdown
 import httpx
+
+from src.chunking.chunker import chunk_text
+from src.prompts import prompt_templates
+from src.utils import helpers
 
 logger = logging.getLogger(__name__)
 
@@ -64,22 +72,6 @@ def download_folder_from_gdrive(url: str, dest_dir: str) -> list[str]:
     return paths
 
 
-def chunk_text(text: str, chunk_size: int = 500, overlap: int = 50) -> list[str]:
-    """Split text into overlapping chunks by word count."""
-    words = text.split()
-    chunks = []
-    start = 0
-    while start < len(words):
-        end = start + chunk_size
-        chunk = " ".join(words[start:end])
-        if chunk.strip():
-            chunks.append(chunk.strip())
-        if end >= len(words):
-            break
-        start = end - overlap
-    return chunks
-
-
 def parse_pdf(path: str) -> str:
     from pypdf import PdfReader
     reader = PdfReader(path)
@@ -105,8 +97,8 @@ def parse_image_with_claude(path: str, client) -> str:
         image_data = base64.standard_b64encode(f.read()).decode("utf-8")
 
     response = client.messages.create(
-        model="claude-sonnet-4-6",
-        max_tokens=1024,
+        model=helpers.get("llm", "model"),
+        max_tokens=helpers.get("llm", "max_tokens"),
         messages=[
             {
                 "role": "user",
@@ -115,7 +107,7 @@ def parse_image_with_claude(path: str, client) -> str:
                         "type": "image",
                         "source": {"type": "base64", "media_type": media_type, "data": image_data},
                     },
-                    {"type": "text", "text": "Describe all text, diagrams, and key information in this image in detail."},
+                    {"type": "text", "text": prompt_templates.IMAGE_EXTRACTION_PROMPT},
                 ],
             }
         ],

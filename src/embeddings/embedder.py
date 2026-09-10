@@ -7,12 +7,14 @@ and `embed_one` without needing the model installed.
 
 from functools import lru_cache
 
+from src.utils import helpers
+
 
 @lru_cache(maxsize=1)
 def get_model():
-    # all-MiniLM-L6-v2: ~80MB, fast, good quality for semantic search
+    # all-MiniLM-L6-v2 by default: ~80MB, fast, good quality for semantic search
     from sentence_transformers import SentenceTransformer  # lazy import
-    return SentenceTransformer("all-MiniLM-L6-v2")
+    return SentenceTransformer(helpers.get("embeddings", "model"))
 
 
 def embed(texts: list[str]) -> list[list[float]]:

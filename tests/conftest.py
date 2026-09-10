@@ -1,4 +1,4 @@
-"""Shared pytest fixtures for the rag-mcp-server test suite.
+"""Shared pytest fixtures for the mcp-rag-server test suite.
 
 Strategy:
 - ChromaDB runs in a per-test temp directory (no shared state, no cleanup needed).
@@ -17,7 +17,8 @@ from typing import Any
 
 import pytest
 
-# Make the rag-mcp-server modules importable regardless of where pytest is run from.
+# Make the project root importable so `src.*` resolves regardless of where
+# pytest is run from.
 ROOT = Path(__file__).resolve().parent.parent
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
@@ -43,8 +44,8 @@ def _deterministic_vector(text: str) -> list[float]:
 @pytest.fixture
 def fake_embed(monkeypatch):
     """Patch embeddings.embed / embed_one to deterministic stubs."""
-    import embeddings
-    import vector_store
+    from src.embeddings import embedder as embeddings
+    from src.vectordb import vector_store
 
     def _embed(texts: list[str]) -> list[list[float]]:
         return [_deterministic_vector(t) for t in texts]
@@ -54,7 +55,7 @@ def fake_embed(monkeypatch):
 
     monkeypatch.setattr(embeddings, "embed", _embed)
     monkeypatch.setattr(embeddings, "embed_one", _embed_one)
-    # vector_store imports these at module load via `from embeddings import ...`,
+    # vector_store imports these at module load via `from ...embedder import ...`,
     # so we also patch the names bound there.
     monkeypatch.setattr(vector_store, "embed", _embed)
     monkeypatch.setattr(vector_store, "embed_one", _embed_one)
@@ -68,7 +69,7 @@ def fake_embed(monkeypatch):
 @pytest.fixture
 def isolated_db(tmp_path, monkeypatch, fake_embed):
     """Point vector_store at a fresh ChromaDB under tmp_path. Yields the module."""
-    import vector_store
+    from src.vectordb import vector_store
 
     db_dir = tmp_path / "chroma_db"
     monkeypatch.setattr(vector_store, "_DB_PATH", str(db_dir))

@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import pytest
 
-import ingestion
+from src.ingestion import loader as ingestion
 
 
 # ---------------------------------------------------------------------------

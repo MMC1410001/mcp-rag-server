@@ -6,18 +6,20 @@ from pathlib import Path
 import chromadb
 from chromadb.config import Settings
 
-from embeddings import embed, embed_one
+from src.embeddings.embedder import embed, embed_one
+from src.utils import helpers
 
-# Persist data in ./chroma_db relative to this file
-_DB_PATH = str(Path(__file__).parent / "chroma_db")
-_COLLECTION_NAME = "rag_documents"
+# Persisted at the project root (config: vectordb.path), so the database
+# location is unchanged by this module living under src/vectordb/.
+_DB_PATH = str(helpers.resolve_path(helpers.get("vectordb", "path")))
+_COLLECTION_NAME = helpers.get("vectordb", "collection")
 
 
 def _get_collection():
     client = chromadb.PersistentClient(path=_DB_PATH)
     return client.get_or_create_collection(
         name=_COLLECTION_NAME,
-        metadata={"hnsw:space": "cosine"},
+        metadata={"hnsw:space": helpers.get("vectordb", "distance")},
     )
 
 

@@ -14,10 +14,6 @@ jobs:
         python-version: ["3.10", "3.11", "3.12"]
       fail-fast: false
 
-    defaults:
-      run:
-        working-directory: rag-mcp-server
-
     steps:
       - uses: actions/checkout@v4
 
@@ -34,7 +30,7 @@ jobs:
 
       - name: Run pytest
         env:
-          # Stubbed in tests, but server.py reads it at import time so any
+          # Stubbed in tests, but src/api/routes.py reads it at import time so any
           # accidental top-level import in tests still works.
           ANTHROPIC_API_KEY: "test-stub-key"
         run: pytest

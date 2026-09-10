@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-import generator
+from src.llm import llm_client as generator
 
 
 class TestAnswerNoContext:

@@ -5,7 +5,7 @@ Point it at a document or an entire Google Drive folder; it parses, chunks, embe
 the content locally, then answers questions against it with citations.
 
 Because it speaks MCP over stdio, any MCP-capable client (Claude Desktop, Claude Code, or your
-own) can use it as a tool — the knowledge base becomes something the model can query directly.
+own) can use it as a tool, so the knowledge base becomes something the model can query directly.
 
 ## What it does
 
@@ -13,19 +13,53 @@ own) can use it as a tool — the knowledge base becomes something the model can
  Drive URL / local file
           │
           ▼
-   ingestion.py ──── PDF · DOCX · TXT · MD · PNG/JPG (via Claude vision)
-          │           chunking with configurable size + overlap
-          ▼
-   embeddings.py ─── sentence-transformers all-MiniLM-L6-v2 (runs locally, no API cost)
+ src/ingestion/loader.py ──── PDF · DOCX · TXT · MD · PNG/JPG (via Claude vision)
           │
           ▼
-  vector_store.py ── ChromaDB, cosine similarity, persisted to disk
+ src/chunking/chunker.py ──── configurable size + overlap (config.yaml)
           │
           ▼
-   generator.py ──── retrieve top-k, then Claude answers grounded in the chunks
+ src/embeddings/embedder.py ─ sentence-transformers all-MiniLM-L6-v2, runs locally
           │
           ▼
-     server.py ───── exposes the pipeline as five MCP tools
+ src/vectordb/vector_store.py ─ ChromaDB, cosine similarity, persisted to disk
+          │
+          ▼
+ src/retrieval/retriever.py ── top-k similarity search
+          │
+          ▼
+ src/llm/llm_client.py ─────── Claude answers, grounded in the retrieved chunks
+   + src/prompts/
+          │
+          ▼
+ src/api/routes.py ─────────── exposes the pipeline as five MCP tools
+          │
+          ▼
+        main.py ────────────── entry point
+```
+
+## Project structure
+
+```
+mcp-rag-server/
+├── README.md
+├── requirements.txt
+├── .env.example            copy to .env and add ANTHROPIC_API_KEY
+├── .gitignore
+├── config.yaml             chunk size, model, DB path, top-k, logging
+├── src/
+│   ├── ingestion/          download and parse PDFs, DOCX, TXT, MD, images
+│   ├── chunking/           split text into overlapping chunks
+│   ├── embeddings/         convert chunks into vectors
+│   ├── vectordb/           ChromaDB operations
+│   ├── retrieval/          similarity search
+│   ├── prompts/            prompt templates
+│   ├── llm/                Claude API calls
+│   ├── api/                MCP tool routes
+│   └── utils/              config loading, paths, logging
+├── tests/                  unit and regression tests
+├── logs/                   app.log
+└── main.py                 entry point
 ```
 
 ## MCP tools
@@ -34,7 +68,7 @@ own) can use it as a tool — the knowledge base becomes something the model can
 |---|---|
 | `ingest_document` | Parse and index a file or an entire folder |
 | `search_documents` | Semantic search, returns matching chunks with scores |
-| `ask_question` | Full RAG — retrieve, then generate a grounded answer with sources |
+| `ask_question` | Full RAG: retrieve, then generate a grounded answer with sources |
 | `list_documents` | What is currently in the knowledge base |
 | `delete_document` | Remove a document and all of its chunks |
 
@@ -43,7 +77,7 @@ own) can use it as a tool — the knowledge base becomes something the model can
 - **Embeddings run locally.** `all-MiniLM-L6-v2` means indexing a large folder costs nothing
   and needs no network round-trip per chunk. Only generation calls the API.
 - **Folder ingestion is fault-tolerant.** An unsupported or corrupt file does not abort the
-  batch — it is recorded in `skipped_files` with a reason and the rest continue.
+  batch. It is recorded in `skipped_files` with a reason and the rest continue.
 - **Per-chunk metadata.** `add_chunks` takes either one dict for the whole batch or a parallel
   list, so a folder ingest attributes every chunk to the file it came from and citations stay
   accurate.
@@ -55,8 +89,15 @@ own) can use it as a tool — the knowledge base becomes something the model can
 ```bash
 pip install -r requirements.txt
 cp .env.example .env        # fill in ANTHROPIC_API_KEY
-python demo.py              # indexes samples/ and asks a question
+python main.py --demo       # indexes samples/ and asks a question
+python main.py              # run the MCP server over stdio
 ```
+
+## Configuration
+
+`config.yaml` holds chunk size and overlap, the embedding model, the ChromaDB path and
+collection, retrieval top-k, the Claude model and token limit, and logging. Every value
+defaults to what the code used before, so the pipeline behaves the same if you leave it alone.
 
 ## Using it as an MCP server
 
@@ -66,7 +107,7 @@ python demo.py              # indexes samples/ and asks a question
   "mcpServers": {
     "rag": {
       "command": "python",
-      "args": ["/absolute/path/to/mcp-rag-server/server.py"],
+      "args": ["/absolute/path/to/mcp-rag-server/main.py"],
       "env": { "ANTHROPIC_API_KEY": "your-key" }
     }
   }
@@ -77,7 +118,7 @@ python demo.py              # indexes samples/ and asks a question
 
 ```bash
 pip install -r requirements-dev.txt
-pytest                      # no API key needed — the Anthropic client is stubbed
+pytest                      # no API key needed, the Anthropic client is stubbed
 ```
 
 Covers ingestion (chunking, overlap, parser dispatch, folder fault-tolerance), the vector store

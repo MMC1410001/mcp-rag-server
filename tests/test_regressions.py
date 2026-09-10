@@ -21,7 +21,7 @@ import logging
 
 import pytest
 
-import ingestion
+from src.ingestion import loader as ingestion
 
 
 def _make_txt(path, content):
